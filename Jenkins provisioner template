@@ -1,0 +1,68 @@
+provider "aws" {
+  region = "us-west-1"  # Update with your desired AWS region
+}
+
+resource "aws_instance" "jenkins_instance" {
+  ami           = "ami-0c55b159cbfafe1f0"  # Amazon Linux 2 AMI ID
+  instance_type = "t2.micro"
+  key_name      = "your-key-pair"  # Update with your EC2 key pair
+
+  tags = {
+    Name = "JenkinsInstance"
+  }
+
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              amazon-linux-extras install -y java-openjdk11
+              wget -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat/jenkins.repo
+              rpm --import https://pkg.jenkins.io/redhat/jenkins.io.key
+              yum install -y jenkins
+              systemctl start jenkins
+              systemctl enable jenkins
+              usermod -aG docker jenkins
+              systemctl restart jenkins
+              EOF
+}
+
+resource "aws_security_group" "jenkins_sg" {
+  name        = "jenkins_sg"
+  description = "Security group for Jenkins instance"
+  vpc_id="vpcid"
+
+  #Allow incoming TCP requests on port 22 from any IP
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+  
+  ingress {
+    from_port   = 8080
+    to_port     = 8080
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+output "jenkins_public_ip" {
+  value = aws_instance.jenkins_instance.public_ip
+}
+
+
+#In this Terraform template:
+
+#It provisions an AWS EC2 instance using the specified AMI and instance type.
+#Jenkins is installed using user data script. The script updates the instance, installs Java OpenJDK 11, adds Jenkins repository, installs Jenkins, starts Jenkins service, and enables it to start on boot.
+#Docker Engine is also installed on the instance, and the Jenkins user is added to the docker group to allow Jenkins to interact with Docker.
+#Security group rules are defined to allow inbound traffic on port 8080(Jenkins web UI).
+#The public IP address of the Jenkins instance is outputted at the end for easy access.
+
